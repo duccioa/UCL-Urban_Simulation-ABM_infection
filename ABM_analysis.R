@@ -1,30 +1,36 @@
 library(ggplot2)
 library(reshape2)
-pop_growth1 <- read.csv("./data/population_growth_1000t_rr112_dr100.csv", stringsAsFactors = FALSE)
-names(pop_growth1)<- c("time", "sick", "healthy", "x")
 
-ggplot(pop_growth1, aes(x=healthy)) + geom_histogram(aes(y=..density..))
 
-data_folder <- "./data/population/"
-list_files <- list.files(data_folder)
-col_index <- 3
-df_complete <- data.frame(time = seq(1,1500,1))
-for(i in 1:length(list_files)){
-    csv <- paste(data_folder, list_files[i], sep = "")
-    df <- read.csv(csv, stringsAsFactors = FALSE)
-    df <- df[1:1500,col_index]
-    
-    df_complete <- cbind(df_complete, df)
-    names(df_complete)[length(names(df_complete))] <- paste("iter_", i, sep ="")
+data_folder = "./data/"
+list_files = list.files(data_folder)
+
+df = read.csv(paste0('./data/', list_files[2]), nrows = 1, skip = 21, sep = ',')
+df = df[-1,]
+read.data = function(List){
+    # define function to remove n characters from a string
+    rm.csv = function(x, n){
+        substr(x, 1, nchar(x) - n)
+    }
+    df = read.csv(paste0('./data/', List[2]), nrows = 1, skip = 21, sep = ',')
+    df = df[-1,]
+    for(i in 1: length(List)){
+        csv = paste0('./data/', List[i])
+        temp = read.csv(csv, nrows = 5000, skip = 21, sep = ',')
+        temp$iter = rm.csv(List[i], 4) 
+        df = rbind(df, temp)
+    }
+    df = df[,c(1,2,6,10,14,18, ncol(df))]
+    names(df) = c('time', 'infected', 'healthy', 'recoveryRate', 'immuneRate', 'population', 'iter')
+    return(df)
 }
-head(df_complete)
+df = read.data(list_files)
 
+df_wide = as.matrix(dcast(df[,c(1,2,3,7)], time ~ iter, value.var = 'infected'))
+df_wide = df_wide[,-1]
+iter_avg = apply(df_wide, MARGIN = 1, mean)
+iter_sd = apply(df_wide, MARGIN = 1, sd)
+iter_lower_confInt = iter_avg - 1.96*(iter_sd/sqrt(ncol(df_wide)-1))
+iter_upper_confInt = iter_avg + 1.96*(iter_sd/sqrt(ncol(df_wide)-1))
 
-df_melted <- melt(df_complete, id="time")
-g <- ggplot(df_melted, aes(x=time, y=value, colour=variable, group=variable))
-g <- g + geom_smooth()
-g
-
-ggplot(df_melted, aes(x = time, y = value)) + geom_smooth(method="loess")
-fit_nl <- loess(value ~ time, data=df_melted, span = 100)
 

@@ -3,6 +3,6 @@ data/population/
 *.nlogo
 
 .RData
-
+.Archive/
 .Rhistory
 .Rproj.user/
