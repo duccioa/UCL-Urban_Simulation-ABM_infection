@@ -1,0 +1,8 @@
+data/Infection_rr111_dr100_Rec4.454/
+data/population/
+*.nlogo
+
+.RData
+
+.Rhistory
+.Rproj.user/
