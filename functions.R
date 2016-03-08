@@ -8,14 +8,14 @@ rm.csv = function(x, n){
     substr(x, 1, nchar(x) - n)
 }
 # Load a single csv from a file name
-raw.data = function(scenario){
+raw.data = function(scenario, n_rows){
     data_folder = paste0('./data/', scenario, '/')
     file_list = list.files(data_folder)
     df = read.csv(paste0(data_folder, file_list[2]), nrows = 1, skip = 21, sep = ',')
     df = df[-1,]
     for(i in 1: length(file_list)){
         csv = paste0(data_folder, file_list[i])
-        temp = read.csv(csv, nrows = 5000, skip = 21, sep = ',')
+        temp = read.csv(csv, nrows = n_rows, skip = 21, sep = ',')
         temp$iter = rm.csv(file_list[i], 4) 
         df = rbind(df, temp)
     }
@@ -51,10 +51,10 @@ calc.Avg = function(dtf){
 
 ## Read and return a dataframe with raw data
 # For each iteration in each scenario
-all.raw.data = function(scenario_list){
+all.raw.data = function(scenario_list, n_rows){
     df = data.frame()
     for(i in 1:length(scenario_list)){
-        raw_df0 = raw.data(scenario_list[i]) 
+        raw_df0 = raw.data(scenario_list[i], n_rows) 
         temp = clean.data(raw_df0)
         df = rbind(df, temp)
     }
@@ -62,10 +62,10 @@ all.raw.data = function(scenario_list){
 }
 
 ## Return a dataframe of all the scenarios with the average and confidence interval
-all.Avg.data = function(scenario_list){
+all.Avg.data = function(scenario_list, n_rows){
     df = data.frame()
     for(i in 1:length(scenario_list)){
-        raw_df0 = raw.data(scenario_list[i]) 
+        raw_df0 = raw.data(scenario_list[i], n_rows) 
         temp = clean.data(raw_df0)
         temp = calc.Avg(temp)
         df = rbind(df, temp)
