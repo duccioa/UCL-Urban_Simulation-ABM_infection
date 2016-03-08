@@ -73,4 +73,56 @@ all.Avg.data = function(scenario_list, n_rows){
     return(df)
 }
 
+## Plot scenarios
+# Input the df from all.raw.data() and from all.Avg.data() and a vector with the 
+# letter codes of the different scenarios
+# returns a list of plots
+plot.scenarios = function(df_raw, df_avg, cases){
+    plot_list = list()
+    col1 = add.alpha('grey8', alpha = 0.2)
+    for(i in 1:length(cases)){
+        selection = cases[i]
+        by_scenario = df_raw[grepl(selection, df_raw$iter),]
+        recR = by_scenario$recoveryRate[1]
+        immR = by_scenario$immuneRate[1]
+        pop = by_scenario$population[1]
+        by_scenario_avg = df_avg[grepl(selection, df_avg$iter),]
+        scenario_mean = mean(by_scenario_avg$iter_avg_infected)
+        scenario_sd = sd(by_scenario_avg$iter_avg_infected)
+        conf_Int = 1.96*(scenario_sd/sqrt(length(by_scenario_avg$iter_avg_infected)))
+        lwr_b = scenario_mean - conf_Int
+        upr_b = scenario_mean + conf_Int
+        num_inf = ifelse(selection == 'i' | selection == 'l', ifelse(selection == 'i', 2, 100), 50)
+        
+        font_size = 8
+        title_size = 30
+        
+        g = ggplot(by_scenario, aes(x = time, y = infected, group=iter))
+        g = g + geom_line(colour = col1) + ylim(0, 200) +
+            geom_hline(aes(yintercept = 100),colour = 'blue')
+        g = g + geom_hline(aes_q(yintercept = lwr_b),colour = 'forestgreen') +
+            geom_hline(aes_q(yintercept = upr_b),colour = 'forestgreen')
+        g = g + geom_line(data = by_scenario_avg, aes(y = iter_avg_infected))
+        g = g + geom_hline(aes_q(yintercept = scenario_mean),colour = 'red')
+        g = g + theme(legend.position="none") 
+        g = g + ggtitle(paste('Scenario', toupper(selection)))
+        g = g + annotate('text', label = paste('mean =', round(scenario_mean,1)), 
+                         x = n - n*0.2, y = 200, size = font_size, colour = 'red', hjust = 0) +
+            annotate('text', label = paste('conf Int = +-',round(conf_Int,1)), 
+                     x = n - n*0.2, y = 192, size = font_size, colour = 'forestgreen', hjust = 0) +
+            annotate('text', label = paste('sd =', round(scenario_sd,1)),
+                     x = n - n*0.2, y = 184, size = font_size, colour = 'grey6', hjust = 0)
+        g = g + annotate('text', label = paste('Recovery rate =', recR), 
+                         x = 0, y = 200, size = font_size, colour = 'black', hjust = 0) + 
+            annotate('text', label = paste('Immunity ratio =', immR), 
+                     x = 0, y = 192, size = font_size, colour = 'black', hjust = 0) +
+            annotate('text', label = paste('Num infected =', num_inf), 
+                     x = 0, y = 184, size = font_size, colour = 'black', hjust = 0) +
+            annotate('text', label = paste('Population =', pop), 
+                     x = 0, y = 176, size = font_size, colour = 'black', hjust = 0)
+        g = g + theme(text = element_text(size=title_size))
+        plot_list[[toupper(selection)]] = g
+    }
+    return(plot_list)
+}
 
