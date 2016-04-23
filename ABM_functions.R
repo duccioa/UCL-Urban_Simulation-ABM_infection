@@ -1,6 +1,12 @@
 ################################################################################
 ##################### AUXILARY FUNCTIONS #######################################
 ################################################################################
+# Calculate the mode of a distribution
+Mode <- function(x) {
+    ux <- unique(x)
+    ux[which.max(tabulate(match(x, ux)))]
+}
+
 
 ## Data manipulation
 # remove .csv from a file name
@@ -73,16 +79,58 @@ all.Avg.data = function(scenario_list, n_rows){
     return(df)
 }
 
+## Calclulate mode and ConfInt
+calc.Mode.df = function(df_raw, df_avg, cases){
+    source('./ABM_functions.R')
+    M = matrix(NA, nrow = 15, ncol = length(cases))
+    colnames(M) = cases
+    rownames(M) = 1:15
+    for(j in 1:length(cases)){
+        sel_scen = cases[j]
+        by_scenario = df_raw[grepl(sel_scen, df_raw$iter),]
+        sel_iter = paste0(cases[j], 
+                          formatC(as.numeric(rownames(M)), width = 2, flag = '0')
+        )
+        for(i in 1:length(sel_iter)){
+            sub_data = by_scenario$infected[grepl(sel_iter[i], by_scenario$iter)]
+            mm = Mode(sub_data)
+            M[i,j] = ifelse(!is.na(mm), mm, mean(M[1:(i-1),j]))
+        }
+    }
+    TT = data.frame(mConfInt = NULL, Mean = NULL, pConfInt = NULL, pVal = NULL)
+    for(i in 1:length(cases)){
+        if(var(M[,i])!=0){
+            tt = t.test(M[,i], alternative = 'two.sided')
+            TT[i,1] = tt$conf.int[1]
+            TT[i,2] = tt$estimate
+            TT[i,3] = tt$conf.int[2]
+            TT[i,4] = tt$p.value
+        }
+        else{
+            TT[i,1] = NA
+            TT[i,2] = mean(M[,i])
+            TT[i,3] = NA
+            TT[i,4] = NA
+        }
+    }
+    names(TT) = c('mConfInt', 'Mode', 'pConfInt', 'pVal')
+    rownames(TT) = cases
+    return(TT)
+}
+
+
 ## Plot scenarios
 # Input the df from all.raw.data() and from all.Avg.data() and a vector with the 
 # letter codes of the different scenarios
 # returns a list of plots
-plot.scenarios = function(df_raw, df_avg, cases, n_iter = 1000){
+plot.scenarios = function(df_raw, df_avg, cases, n_iter = 1000, confIntDf){
     plot_list = list()
     col1 = add.alpha('grey8', alpha = 0.2)
     for(i in 1:length(cases)){
         selection = cases[i]
+        # Subset data
         by_scenario = df_raw[grepl(selection, df_raw$iter),]
+        # Extract parameters
         recR = by_scenario$recoveryRate[1]
         immR = by_scenario$immuneRate[1]
         pop = by_scenario$population[1]
@@ -91,8 +139,8 @@ plot.scenarios = function(df_raw, df_avg, cases, n_iter = 1000){
         nn = round(length(by_scenario_avg$iter_avg_infected)*.5,0)
         end_value = tail(by_scenario_avg$iter_avg_infected, 1)
         scenario_mean = ifelse(end_value == 0 | end_value == 200, 
-                    ifelse(end_value == 0, 0, 200), 
-                    mean(tail(by_scenario_avg$iter_avg_infected, nn)))
+                               ifelse(end_value == 0, 0, 200), 
+                               mean(tail(by_scenario_avg$iter_avg_infected, nn)))
         
         scenario_sd = sd(tail(by_scenario_avg$iter_avg_infected),nn)
         conf_Int = 1.96*(scenario_sd/sqrt(nn))
@@ -100,25 +148,39 @@ plot.scenarios = function(df_raw, df_avg, cases, n_iter = 1000){
         upr_b = scenario_mean + conf_Int
         num_inf = ifelse(selection == 'i' | selection == 'l', ifelse(selection == 'i', 2, 100), 50)
         
+        
+        
+        
         font_size = 10
         title_size = 30
         
-        g = ggplot(by_scenario, aes(x = time, y = infected, group=iter))
+        g = ggplot(by_scenario, aes(x = time, y = infected, group=iter)) + theme_bw()
         g = g + geom_line(colour = col1) + ylim(0, 200) + xlim(0,n_iter) +
-            geom_hline(aes(yintercept = 100),colour = 'blue')
-        g = g + geom_hline(aes_q(yintercept = lwr_b),colour = 'forestgreen') +
-            geom_hline(aes_q(yintercept = upr_b),colour = 'forestgreen')
+            geom_hline(aes(yintercept = 100),colour = 'blue')# blue line at half of the population
+        g = g + geom_hline(aes_q(yintercept = confIntDf$mConfInt[i]),colour = 'forestgreen') +
+            geom_hline(aes_q(yintercept = confIntDf$pConfInt[i]),colour = 'forestgreen')
         g = g + geom_line(data = by_scenario_avg, aes(y = iter_avg_infected))
-        g = g + geom_hline(aes_q(yintercept = scenario_mean),colour = 'red')
+        g = g + geom_hline(aes_q(yintercept = confIntDf$Mean[i]),colour = 'red')
         g = g + theme(legend.position="none") 
         g = g + ggtitle(paste('Scenario', toupper(selection)))
-        
-        g = g + annotate('text', label = paste('Avg at equilibrium =', round(scenario_mean,1)), 
-                         x = n_iter-n_iter*0.3, y = 200, size = font_size, colour = 'red', hjust = 0) +
-            annotate('text', label = paste('conf Int = +-',round(conf_Int,4)), 
-                     x = n_iter-n_iter*0.3, y = 192, size = font_size, colour = 'forestgreen', hjust = 0) +
-            annotate('text', label = paste('sd =', round(scenario_sd,1)),
-                     x = n_iter-n_iter*0.3, y = 184, size = font_size, colour = 'grey6', hjust = 0)
+        if(!is.na(confIntDf$pVal[i])){
+            g = g + annotate('text', label = paste('Mode =', round(confIntDf$Mode[i],1)), 
+                             x = n_iter-n_iter*0.3, y = 200, size = font_size, colour = 'red', hjust = 0) +
+                annotate('text', label = '95% Conf Int', 
+                         x = n_iter-n_iter*0.3, y = 190, size = font_size, colour = 'forestgreen', hjust = 0) +
+                annotate('text', label = paste('[',round(confIntDf$mConfInt[i],1), ',',round(confIntDf$pConfInt[i],1),']'),
+                         x = n_iter-n_iter*0.3, y = 184, size = font_size, colour = 'forestgreen', hjust = 0) +
+                annotate('text', label = paste('p-value =', 
+                                               format(confIntDf$pVal[i], digits=7-(nchar(n)-1), width=1)),
+                         x = n_iter-n_iter*0.3, y = 174, size = font_size, colour = 'grey60', hjust = 0)
+        } else{
+            g = g + annotate('text', label = paste('Mode =', round(confIntDf$Mean[i],1)), 
+                             x = n_iter-n_iter*0.3, y = 200, size = font_size, colour = 'red', hjust = 0) +
+                annotate('text', label = '95% Conf Int', 
+                         x = n_iter-n_iter*0.3, y = 190, size = font_size, colour = 'forestgreen', hjust = 0) +
+                annotate('text', label = '[constant value]',
+                         x = n_iter-n_iter*0.3, y = 184, size = font_size, colour = 'forestgreen', hjust = 0)
+        }
         g = g + annotate('text', label = paste('Recovery rate =', recR), 
                          x = 0, y = 200, size = font_size, colour = 'black', hjust = 0) + 
             annotate('text', label = paste('Immunity ratio =', immR), 
@@ -137,40 +199,72 @@ plot.scenarios = function(df_raw, df_avg, cases, n_iter = 1000){
 # Find the average time t when the system hits the average of a sample of 
 # the tail of the time series
 
-find.steady = function(a_raw, a_avg, tail_len = 0.3){
-    iters = unique(a_raw$iter)
-    output = data.frame()
-    a_avg = a_avg[!is.na(a_avg$iter_avg_infected),]
-    n = round(length(a_avg$iter_avg_infected)*tail_len,0)# sample the last 30% of the series
-    end_value = tail(a_avg$iter_avg_infected, 1)
-    mu = ifelse(end_value == 0 | end_value == 200, 
-                ifelse(end_value == 0, 0, 200), 
-                mean(tail(a_avg$iter_avg_infected, n)))
-    for(i in 1:length(iters)){
-        df = a_raw[a_raw$iter == iters[i],]
-        t = 1
-        if(df$infected[t+1] < mu){
-        while(df$infected[t] < mu){t = t + 1}
-        output = rbind(output, df[t,])
-        }
-        else{
-            t = 2
-            while(df$infected[t] > mu){t = t + 1}
-            output = rbind(output, df[t,])
+find.steady = function(df_raw, cases, Mode_val, window_size = 20){
+    eval_window = function(mw, pw, mc, pc, dat, iter){
+        if(pw >= 5000){print('Iteration limit reached');output = TRUE}
+        else{mo = Mode(dat[mw:pw])
+        #MO = Mode(dat[mw:length(dat)])
+        print(iter)
+        print(paste('mo =', mo))
+        output = mo<=pc&mo>=mc #& MO<=pc&MO>=mc
+        print(output)}
+        return(!output)
+    }
+    S = matrix(NA, nrow = 15, ncol = length(cases))
+    
+    for(j in 1:length(cases)){ # j = scenario
+        sel_scen = cases[j]
+        index_sel = which(grepl(sel_scen,rownames(Mode_val)))
+        by_scenario = df_raw[grepl(sel_scen, df_raw$iter),]
+        sel_iter = paste0(cases[j], 
+                          formatC(as.numeric(rownames(M)), width = 2, flag = '0')
+        )
+        
+        pConf = round(Mode_val$pConfInt[index_sel])
+        mConf = round(Mode_val$mConfInt[index_sel])
+        for(i in 1:length(sel_iter)){ # i = run
+            sub_data = by_scenario$infected[grepl(sel_iter[i], by_scenario$iter)]
+            if(!sel_scen %in% c('d', 'h', 'r')){
+                w = window_size # window size
+                t=1 + w # starting time
+                while(eval_window(mw=t-w, pw=t, 
+                                  mc=mConf, pc = pConf, 
+                                  dat = sub_data,
+                                  iter = sel_iter[i])){t=t+w}
+                output = t
+            }
+            if(sel_scen %in% c('d', 'h')){
+                t=2
+                while(sub_data[t]!=0){t=t+w}
+                output = t
+            }
+            if(sel_scen %in% 'r'){
+                t=2
+                while(sub_data[t]!=200){t=t+w}
+                output = t
+            }
+            if(output <= 5000){S[i,j] = output}
+            else{S[i,j] = NA}
         }
     }
-    mu_t = round(mean(output$time),2)
-    sd_t = sd(output$time)
-    n_t = length(output$time)
-    conf_int = round(1.96*sd_t/sqrt(n_t),1)
-    lwr_b = round(mu_t - conf_int, 2)
-    upr_b = round(mu_t + conf_int, 2)
-    out_v = c(mu_t, conf_int, upr_b, lwr_b, mu)
-    names(out_v) = c('Average time to the steady state', 
-                     '95% confidence interval',
-                     'Upper bound',
-                     'Lower bound', 
-                     'Average of the steady state')
-    print(out_v)
-    return(out_v)
+    SS = data.frame(mConfInt = NULL, Time2Steady = NULL, pConfInt = NULL, pVal = NULL)
+    for(i in 1:length(cases)){
+        if(var(S[,i], na.rm = T)!=0){
+            Ss = t.test(S[,i], alternative = 'two.sided')
+            SS[i,1] = Ss$conf.int[1]
+            SS[i,2] = Ss$estimate
+            SS[i,3] = Ss$conf.int[2]
+            SS[i,4] = Ss$p.value
+        }
+        else{
+            SS[i,1] = NA
+            SS[i,2] = mean(S[,i])
+            SS[i,3] = NA
+            SS[i,4] = NA
+        }
+    }
+    names(SS) = c('mConfInt', 'Mode', 'pConfInt', 'pVal')
+    rownames(SS) = cases
+    return(SS)
+    
 }
