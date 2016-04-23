@@ -7,18 +7,19 @@ n = 5000 # Specify number of rows
 all_iter = all.raw.data(scenarios, n)
 all_Avg = all.Avg.data(scenarios, n)
 #### STEADY STATE ####
+cases = c('a', 'b', 'c', 'd', 'f', 'g', 'h', 'i', 'l', 'p', 'q', 'r')
 TT = calc.Mode.df(all_iter, all_Avg, cases)
 
 SS = find.steady(all_iter, cases, TT, window_size = 10)
 
 #### PLOT LINE GRAPHS ####
 #### 5000 iterations ####
-num_iter_plotted = 1000
-cases = c('a', 'b', 'c', 'd', 'f', 'g', 'h', 'i', 'l', 'p', 'q', 'r')
+num_iter_plotted = 5000
+
 debug(plot.scenarios)
 plot_list = plot.scenarios(all_iter, all_Avg, 
                            cases, n_iter = num_iter_plotted, 
-                           confIntDf = TT, timeDf = SS)
+                           confIntDf = TT)#, timeDf = SS)
 for(i in 1:length(cases)){
     plot_name = paste0('infected_t',num_iter_plotted,'_', toupper(cases[i]), '.png')
         ggsave(plot = plot_list[[i]], filename = plot_name, 

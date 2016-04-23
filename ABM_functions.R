@@ -124,6 +124,7 @@ calc.Mode.df = function(df_raw, df_avg, cases){
 # letter codes of the different scenarios
 # returns a list of plots
 plot.scenarios = function(df_raw, df_avg, cases, n_iter = 1000, confIntDf){
+    require(ggplot2)
     plot_list = list()
     col1 = add.alpha('grey8', alpha = 0.2)
     for(i in 1:length(cases)){
@@ -217,7 +218,7 @@ find.steady = function(df_raw, cases, Mode_val, window_size = 20){
         index_sel = which(grepl(sel_scen,rownames(Mode_val)))
         by_scenario = df_raw[grepl(sel_scen, df_raw$iter),]
         sel_iter = paste0(cases[j], 
-                          formatC(as.numeric(rownames(M)), width = 2, flag = '0')
+                          formatC(1:nrow(Mode_val), width = 2, flag = '0')
         )
         
         pConf = round(Mode_val$pConfInt[index_sel])
