@@ -136,16 +136,16 @@ plot.scenarios = function(df_raw, df_avg, cases, n_iter = 1000, confIntDf){
         pop = by_scenario$population[1]
         by_scenario_avg = df_avg[grepl(selection, df_avg$iter),]
         by_scenario_avg = by_scenario_avg[!is.na(by_scenario_avg$iter_avg_infected),]
-        nn = round(length(by_scenario_avg$iter_avg_infected)*.5,0)
-        end_value = tail(by_scenario_avg$iter_avg_infected, 1)
-        scenario_mean = ifelse(end_value == 0 | end_value == 200, 
-                               ifelse(end_value == 0, 0, 200), 
-                               mean(tail(by_scenario_avg$iter_avg_infected, nn)))
+        #nn = round(length(by_scenario_avg$iter_avg_infected)*.5,0)
+        #end_value = tail(by_scenario_avg$iter_avg_infected, 1)
+        #scenario_mean = ifelse(end_value == 0 | end_value == 200, 
+         #                      ifelse(end_value == 0, 0, 200), 
+        #                       mean(tail(by_scenario_avg$iter_avg_infected, nn)))
         
-        scenario_sd = sd(tail(by_scenario_avg$iter_avg_infected),nn)
-        conf_Int = 1.96*(scenario_sd/sqrt(nn))
-        lwr_b = scenario_mean - conf_Int
-        upr_b = scenario_mean + conf_Int
+        #scenario_sd = sd(tail(by_scenario_avg$iter_avg_infected),nn)
+        #conf_Int = 1.96*(scenario_sd/sqrt(nn))
+        #lwr_b = scenario_mean - conf_Int
+        #upr_b = scenario_mean + conf_Int
         num_inf = ifelse(selection == 'i' | selection == 'l', ifelse(selection == 'i', 2, 100), 50)
         
         
@@ -156,7 +156,7 @@ plot.scenarios = function(df_raw, df_avg, cases, n_iter = 1000, confIntDf){
         
         g = ggplot(by_scenario, aes(x = time, y = infected, group=iter)) + theme_bw()
         g = g + geom_line(colour = col1) + ylim(0, 200) + xlim(0,n_iter) +
-            geom_hline(aes(yintercept = 100),colour = 'blue')# blue line at half of the population
+            geom_hline(aes(yintercept = 100),colour = 'grey40')# blue line at half of the population
         g = g + geom_hline(aes_q(yintercept = confIntDf$mConfInt[i]),colour = 'forestgreen') +
             geom_hline(aes_q(yintercept = confIntDf$pConfInt[i]),colour = 'forestgreen')
         g = g + geom_line(data = by_scenario_avg, aes(y = iter_avg_infected))
@@ -174,7 +174,7 @@ plot.scenarios = function(df_raw, df_avg, cases, n_iter = 1000, confIntDf){
                                                format(confIntDf$pVal[i], digits=7-(nchar(n)-1), width=1)),
                          x = n_iter-n_iter*0.3, y = 174, size = font_size, colour = 'grey60', hjust = 0)
         } else{
-            g = g + annotate('text', label = paste('Mode =', round(confIntDf$Mean[i],1)), 
+            g = g + annotate('text', label = paste('Mode =', round(confIntDf$Mode[i],1)), 
                              x = n_iter-n_iter*0.3, y = 200, size = font_size, colour = 'red', hjust = 0) +
                 annotate('text', label = '95% Conf Int', 
                          x = n_iter-n_iter*0.3, y = 190, size = font_size, colour = 'forestgreen', hjust = 0) +
@@ -247,7 +247,7 @@ find.steady = function(df_raw, cases, Mode_val, window_size = 20){
             else{S[i,j] = NA}
         }
     }
-    SS = data.frame(mConfInt = NULL, Time2Steady = NULL, pConfInt = NULL, pVal = NULL)
+    SS = data.frame(mConfInt = NULL, Time2Steady = NULL, pConfInt = NULL, pVal = NULL, SD = NULL)
     for(i in 1:length(cases)){
         if(var(S[,i], na.rm = T)!=0){
             Ss = t.test(S[,i], alternative = 'two.sided')
@@ -255,15 +255,17 @@ find.steady = function(df_raw, cases, Mode_val, window_size = 20){
             SS[i,2] = Ss$estimate
             SS[i,3] = Ss$conf.int[2]
             SS[i,4] = Ss$p.value
+            SS[i,5] = sd(S[,i], na.rm = T)
         }
         else{
             SS[i,1] = NA
-            SS[i,2] = mean(S[,i])
+            SS[i,2] = mean(S[,i], na.rm = T)
             SS[i,3] = NA
             SS[i,4] = NA
+            SS[i,5] = NA
         }
     }
-    names(SS) = c('mConfInt', 'Mode', 'pConfInt', 'pVal')
+    names(SS) = c('mConfInt', 'Time2Steady', 'pConfInt', 'pVal', 'SD')
     rownames(SS) = cases
     return(SS)
     
