@@ -16,10 +16,10 @@ SS = find.steady(all_iter, cases, TT, window_size = 10)
 #### 5000 iterations ####
 num_iter_plotted = 5000
 
-debug(plot.scenarios)
+#debug(plot.scenarios)
 plot_list = plot.scenarios(all_iter, all_Avg, 
                            cases, n_iter = num_iter_plotted, 
-                           confIntDf = TT)#, timeDf = SS)
+                           confIntDf = TT, timeDf = SS)
 for(i in 1:length(cases)){
     plot_name = paste0('infected_t',num_iter_plotted,'_', toupper(cases[i]), '.png')
         ggsave(plot = plot_list[[i]], filename = plot_name, 
@@ -27,7 +27,7 @@ for(i in 1:length(cases)){
 }
 
 #### 200 iterations ####
-n = 200
+n = 600
 case_studies = all_iter[grepl('p', all_iter$iter) | 
                             grepl('q', all_iter$iter) |
                             grepl('r', all_iter$iter), ]
@@ -37,7 +37,8 @@ case_avg = all_Avg[grepl('p', all_Avg$iter) |
 case_studies = case_studies[case_studies$time <= n,]
 case_avg = case_avg[case_avg$time <= n,]
 
-plot_list = plot.scenarios(case_studies, case_avg, c('p', 'q', 'r'), n, confIntDf = TT[10:12,])
+plot_list = plot.scenarios(case_studies, case_avg, c('p', 'q', 'r'), n, 
+                           confIntDf = TT[10:12,], timeDf = SS[10:12,])
 for(i in 1:length(c('p', 'q', 'r'))){
     plot_name = paste0('infected_t',n,'_', toupper(c('p', 'q', 'r')[i]), '.png')
     ggsave(plot = plot_list[[i]], filename = plot_name, 
@@ -54,7 +55,7 @@ cases = c('a', 'b', 'c', 'd', 'f', 'g', 'h', 'i', 'l', 'p', 'q', 'r')
 for(i in 1:length(cases)){
     scenario = cases[i]
     subs = all_iter$infected[grepl(scenario, all_iter$iter)]
-    m = round(TT$Mean[i],1)
+    m = round(TT$Mode[i],1)
     Col = 'red'
     png(paste0('./Figures/dist_', toupper(scenario), '.png'), width = 800, height = 600)
     par(cex = 1.2, lwd = 0.5)

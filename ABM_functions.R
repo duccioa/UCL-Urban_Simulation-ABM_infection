@@ -123,12 +123,13 @@ calc.Mode.df = function(df_raw, df_avg, cases){
 # Input the df from all.raw.data() and from all.Avg.data() and a vector with the 
 # letter codes of the different scenarios
 # returns a list of plots
-plot.scenarios = function(df_raw, df_avg, cases, n_iter = 1000, confIntDf){
+plot.scenarios = function(df_raw, df_avg, cases, n_iter = 1000, confIntDf, timeDf){
     require(ggplot2)
     plot_list = list()
     col1 = add.alpha('grey8', alpha = 0.2)
     for(i in 1:length(cases)){
         selection = cases[i]
+        index_sel = which(grepl(selection,rownames(confIntDf)))
         # Subset data
         by_scenario = df_raw[grepl(selection, df_raw$iter),]
         # Extract parameters
@@ -137,59 +138,85 @@ plot.scenarios = function(df_raw, df_avg, cases, n_iter = 1000, confIntDf){
         pop = by_scenario$population[1]
         by_scenario_avg = df_avg[grepl(selection, df_avg$iter),]
         by_scenario_avg = by_scenario_avg[!is.na(by_scenario_avg$iter_avg_infected),]
-        #nn = round(length(by_scenario_avg$iter_avg_infected)*.5,0)
-        #end_value = tail(by_scenario_avg$iter_avg_infected, 1)
-        #scenario_mean = ifelse(end_value == 0 | end_value == 200, 
-         #                      ifelse(end_value == 0, 0, 200), 
-        #                       mean(tail(by_scenario_avg$iter_avg_infected, nn)))
-        
-        #scenario_sd = sd(tail(by_scenario_avg$iter_avg_infected),nn)
-        #conf_Int = 1.96*(scenario_sd/sqrt(nn))
-        #lwr_b = scenario_mean - conf_Int
-        #upr_b = scenario_mean + conf_Int
         num_inf = ifelse(selection == 'i' | selection == 'l', ifelse(selection == 'i', 2, 100), 50)
-        
-        
-        
-        
+
         font_size = 10
         title_size = 30
+        ylim_max = 230
         
         g = ggplot(by_scenario, aes(x = time, y = infected, group=iter)) + theme_bw()
-        g = g + geom_line(colour = col1) + ylim(0, 200) + xlim(0,n_iter) +
-            geom_hline(aes(yintercept = 100),colour = 'grey40')# blue line at half of the population
+        # Steady state
+        g = g + geom_vline(data = timeDf,
+                           aes_q(xintercept = timeDf$Time2Steady[index_sel]), lty = 'dashed', size = .8)
+        g = g + geom_vline(data = timeDf,
+                           aes_q(xintercept = timeDf$mConfInt[index_sel]), lty = 'dotted', size = .7)
+        g = g + geom_vline(data = timeDf,
+                           aes_q(xintercept = timeDf$pConfInt[index_sel]), lty = 'dotted', size = .7)
+        # Mode 
+        g = g + geom_line(colour = col1) + ylim(0, ylim_max) + xlim(0,n_iter) +
+            geom_hline(aes(yintercept = 100),colour = 'grey40')# grey line at half of the population
         g = g + geom_hline(aes_q(yintercept = confIntDf$mConfInt[i]),colour = 'forestgreen') +
             geom_hline(aes_q(yintercept = confIntDf$pConfInt[i]),colour = 'forestgreen')
         g = g + geom_line(data = by_scenario_avg, aes(y = iter_avg_infected))
-        g = g + geom_hline(aes_q(yintercept = confIntDf$Mean[i]),colour = 'red')
+        g = g + geom_hline(aes_q(yintercept = confIntDf$Mode[i]),colour = 'red')
+        # Titles
         g = g + theme(legend.position="none") 
         g = g + ggtitle(paste('Scenario', toupper(selection)))
+        # Annotation of the time to steady
+        x_pos_t = n_iter-n_iter*0.25 # starting position of the text
+        seg_t = x_pos_t-x_pos_t*0.02 # ending position of the segment
+        l = n_iter*0.1 # lengh of the segment
+        g = g + geom_segment(aes_string(x = seg_t-l, y = ylim_max - 1, xend = seg_t, yend = ylim_max-1), 
+                                 colour = 'grey20',lty = 'dashed', size = .8) +
+            geom_segment(aes_string(x = seg_t-l, y = ylim_max-11, xend = seg_t, yend = ylim_max-11), 
+                         colour = 'grey20',lty = 'dotted', size = .7) # legend segments
+            
+        
+        g = g + annotate('text', label = paste('Time to steady =', round(timeDf$Time2Steady[i],1)), 
+                         x = x_pos_t, y = ylim_max, size = font_size, colour = 'grey20', hjust = 0) +
+            annotate('text', label = '95% Conf Int', 
+                     x = x_pos_t, y = ylim_max-10, size = font_size, colour = 'grey20', hjust = 0) +
+            annotate('text', label = paste('[',round(timeDf$mConfInt[i],1), ',',round(timeDf$pConfInt[i],1),']'),
+                     x = x_pos_t, y = ylim_max-16, size = font_size, colour = 'grey20', hjust = 0) 
+        # Annotation of the mode
+        x_pos_m = n_iter-n_iter*0.6
+        seg_m = x_pos_m-x_pos_m*0.02
+        
+        g = g + geom_segment(aes_string(x = seg_m-l, y = ylim_max-27, xend = seg_m, yend = ylim_max-27), 
+                         colour = 'black', size = 1.2) 
+        g = g + annotate('text', label = 'Average trend',
+                     x = x_pos_m, y = ylim_max-26, size = font_size, colour = 'grey20', hjust = 0)
+        
         if(!is.na(confIntDf$pVal[i])){
+            
+            g = g + geom_segment(aes_string(x = seg_m-l, y = ylim_max-1, xend = seg_m, yend = ylim_max-1), 
+                                 colour = 'red', size = .8) +
+                geom_segment(aes_string(x = seg_m-l, y = ylim_max-11, xend = seg_m, yend = ylim_max-11), 
+                             colour = 'forestgreen', size = .7)
+            
             g = g + annotate('text', label = paste('Mode =', round(confIntDf$Mode[i],1)), 
-                             x = n_iter-n_iter*0.3, y = 200, size = font_size, colour = 'red', hjust = 0) +
+                             x = x_pos_m, y = ylim_max, size = font_size, colour = 'grey20', hjust = 0) +
                 annotate('text', label = '95% Conf Int', 
-                         x = n_iter-n_iter*0.3, y = 190, size = font_size, colour = 'forestgreen', hjust = 0) +
+                         x = x_pos_m, y = ylim_max-10, size = font_size, colour = 'grey20', hjust = 0) +
                 annotate('text', label = paste('[',round(confIntDf$mConfInt[i],1), ',',round(confIntDf$pConfInt[i],1),']'),
-                         x = n_iter-n_iter*0.3, y = 184, size = font_size, colour = 'forestgreen', hjust = 0) +
-                annotate('text', label = paste('p-value =', 
-                                               format(confIntDf$pVal[i], digits=7-(nchar(n)-1), width=1)),
-                         x = n_iter-n_iter*0.3, y = 174, size = font_size, colour = 'grey60', hjust = 0)
+                         x = x_pos_m, y = ylim_max-16, size = font_size, colour = 'grey20', hjust = 0)
         } else{
             g = g + annotate('text', label = paste('Mode =', round(confIntDf$Mode[i],1)), 
-                             x = n_iter-n_iter*0.3, y = 200, size = font_size, colour = 'red', hjust = 0) +
+                             x = x_pos_m, y = ylim_max, size = font_size, colour = 'grey20', hjust = 0) +
                 annotate('text', label = '95% Conf Int', 
-                         x = n_iter-n_iter*0.3, y = 190, size = font_size, colour = 'forestgreen', hjust = 0) +
+                         x = x_pos_m, y = ylim_max-10, size = font_size, colour = 'grey20', hjust = 0) +
                 annotate('text', label = '[constant value]',
-                         x = n_iter-n_iter*0.3, y = 184, size = font_size, colour = 'forestgreen', hjust = 0)
+                         x = x_pos_m, y = ylim_max-16, size = font_size, colour = 'grey20', hjust = 0)
         }
+        # Annotate parameters
         g = g + annotate('text', label = paste('Recovery rate =', recR), 
-                         x = 0, y = 200, size = font_size, colour = 'black', hjust = 0) + 
+                         x = 0, y = ylim_max, size = font_size, colour = 'grey20', hjust = 0) + 
             annotate('text', label = paste('Immunity ratio =', immR), 
-                     x = 0, y = 192, size = font_size, colour = 'black', hjust = 0) +
+                     x = 0, y = ylim_max-8, size = font_size, colour = 'grey20', hjust = 0) +
             annotate('text', label = paste('Num infected =', num_inf), 
-                     x = 0, y = 184, size = font_size, colour = 'black', hjust = 0) +
+                     x = 0, y = ylim_max-16, size = font_size, colour = 'grey20', hjust = 0) +
             annotate('text', label = paste('Population =', pop), 
-                     x = 0, y = 176, size = font_size, colour = 'black', hjust = 0)
+                     x = 0, y = ylim_max-24, size = font_size, colour = 'grey20', hjust = 0)
         g = g + theme(text = element_text(size=title_size))
         plot_list[[toupper(selection)]] = g
     }
@@ -251,7 +278,7 @@ find.steady = function(df_raw, cases, Mode_val, window_size = 20){
     SS = data.frame(mConfInt = NULL, Time2Steady = NULL, pConfInt = NULL, pVal = NULL, SD = NULL)
     for(i in 1:length(cases)){
         if(var(S[,i], na.rm = T)!=0){
-            Ss = t.test(S[,i], alternative = 'two.sided')
+            Ss = t.test(S[,i], mu = mean(S[,i], na.rm = T),alternative = 'two.sided')
             SS[i,1] = Ss$conf.int[1]
             SS[i,2] = Ss$estimate
             SS[i,3] = Ss$conf.int[2]
